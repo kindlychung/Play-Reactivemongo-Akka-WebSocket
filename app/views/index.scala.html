@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Hello Play ReactiveMongo WebSocket</title>
+        <script>
+                var wsUri = "ws://localhost:9000/users/ws";
+                var webSocket = new WebSocket(wsUri);
+                webSocket.onmessage = function (event) {
+                    var out = document.getElementById("users");
+                    out.textContent = event.data;
+                }
+        </script>
+    </head>
+    <body>
+        <h3 id="users"></h3>
+    </body>
+</html>
