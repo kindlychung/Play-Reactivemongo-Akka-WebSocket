@@ -12,6 +12,7 @@ import reactivemongo.bson.BSONDocument
 import reactivemongo.play.json.collection.JSONCollection
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Success
 
 class UserRepository @Inject()(reactiveMongoApi: ReactiveMongoApi, implicit val ec: ExecutionContext) {
 
@@ -33,9 +34,14 @@ class UserRepository @Inject()(reactiveMongoApi: ReactiveMongoApi, implicit val 
   def listenUserCollection(f: User => Unit) {
     implicit val system: ActorSystem = ActorSystem()
     implicit val mat: ActorMaterializer = ActorMaterializer()
-    createCursor.map(x => {
-      x.documentSource().runForeach(f)(mat)
-    })
+    val c = createCursor
+    c.onComplete {
+      case Success(stream) =>
+        Logger.info("New element received...")
+        stream.documentSource().runForeach(f)
+      case _ =>
+        Logger.info("Failed to create cursor.")
+    }
   }
 
 }
