@@ -1,13 +1,13 @@
 package controllers
 
 import javax.inject.Inject
-
 import actors.UserListenActor
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import play.api.mvc.{Action, Controller, WebSocket}
 import models._
 import models.User._
+import play.api.Logger
 import play.api.libs.streams.ActorFlow
 import play.api.mvc.WebSocket.MessageFlowTransformer
 import repository.UserRepository
@@ -23,15 +23,21 @@ class UserController @Inject()(userRepository: UserRepository,
   }
 
   def create = Action.async(parse.json) {
-    _.body.validate[User].map(user =>
+    _.body.validate[User].map(user => {
+      Logger.info("Creating user...")
       userRepository.create(user).map(_ => Created)
+    }
     ).getOrElse(Future.successful(BadRequest("invalid json")))
   }
 
   implicit val messageFlowTransformer = MessageFlowTransformer.jsonMessageFlowTransformer[User, User]
 
   def watchCollection = WebSocket.accept[User, User] { _ =>
-    ActorFlow.actorRef(out => UserListenActor.props(userRepository, out))
+    Logger.info("Watching user collection...")
+    ActorFlow.actorRef { out =>
+      Logger.info(s"Output actor: $out")
+      UserListenActor.props(userRepository, out)
+    }
   }
 
 }

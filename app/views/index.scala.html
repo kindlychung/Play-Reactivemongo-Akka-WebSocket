@@ -6,12 +6,14 @@
                 var wsUri = "ws://localhost:9000/users/ws";
                 var webSocket = new WebSocket(wsUri);
                 webSocket.onmessage = function (event) {
+                    console.log(event);
                     var out = document.getElementById("users");
                     out.textContent = event.data;
                 }
         </script>
     </head>
     <body>
+        <h1>Users</h1>
         <h3 id="users"></h3>
     </body>
 </html>

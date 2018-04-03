@@ -1,10 +1,10 @@
 package repository
 
 import javax.inject.Inject
-
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import models._
+import play.api.Logger
 import play.modules.reactivemongo.ReactiveMongoApi
 import reactivemongo.play.json._
 import reactivemongo.akkastream.AkkaStreamCursor
@@ -31,9 +31,11 @@ class UserRepository @Inject()(reactiveMongoApi: ReactiveMongoApi, implicit val 
   }
 
   def listenUserCollection(f: User => Unit) {
-    implicit val system = ActorSystem()
-    implicit val mat = ActorMaterializer()
-    createCursor.map(_.documentSource().runForeach(f)(mat))
+    implicit val system: ActorSystem = ActorSystem()
+    implicit val mat: ActorMaterializer = ActorMaterializer()
+    createCursor.map(x => {
+      x.documentSource().runForeach(f)(mat)
+    })
   }
 
 }
