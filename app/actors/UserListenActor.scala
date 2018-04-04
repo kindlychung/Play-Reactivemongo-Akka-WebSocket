@@ -2,9 +2,13 @@ package actors
 
 import actors.UserListenActor.ReceiveUpdate
 import akka.actor.{Actor, ActorRef, Props}
+import akka.stream.scaladsl.Source
 import models.User
 import play.api.Logger
+import reactivemongo.akkastream.State
 import repository.UserRepository
+
+import scala.concurrent.Future
 
 object UserListenActor {
 
@@ -14,6 +18,7 @@ object UserListenActor {
 }
 
 class UserListenActor(userRepository: UserRepository, out: ActorRef) extends Actor with akka.actor.ActorLogging {
+  var docSource: Option[Source[User, Future[State]]] = None
 
   override def receive: PartialFunction[Any, Unit] = {
     case ReceiveUpdate(u) => {
