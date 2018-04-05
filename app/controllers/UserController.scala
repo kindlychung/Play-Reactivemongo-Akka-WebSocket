@@ -22,6 +22,7 @@ class UserController @Inject()(userRepository: UserRepository,
     Ok(views.html.index())
   }
 
+
   def create = Action.async(parse.json) {
     _.body.validate[User].map(user => {
       Logger.info("Creating user...")

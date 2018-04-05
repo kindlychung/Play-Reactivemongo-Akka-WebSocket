@@ -8,7 +8,9 @@
                 webSocket.onmessage = function (event) {
                     console.log(event);
                     var out = document.getElementById("users");
-                    out.textContent = event.data;
+                    var userElement = document.createElement("h4");
+                    userElement.textContent = event.data;
+                    out.appendChild(userElement);
                 }
         </script>
     </head>

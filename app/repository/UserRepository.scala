@@ -2,27 +2,33 @@ package repository
 
 import javax.inject.Inject
 import reactivemongo.api._
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem}
 import akka.stream.{ActorMaterializer, scaladsl}
 import akka.stream.scaladsl.Source
 import models._
 import play.api.Logger
+import play.modules.reactivemongo.ReactiveMongoApi
 import reactivemongo.api.collections.bson.BSONCollection
 import reactivemongo.api.commands.WriteResult
 import reactivemongo.bson.{BSONDocument, Macros}
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.ExecutionContext.global
 import scala.util.{Failure, Success, Try}
 
 trait UserRepositoryT {
+
   import reactivemongo.akkastream._
+
+  implicit val ec: ExecutionContext
+
   implicit val system: ActorSystem = ActorSystem()
   implicit val mat: ActorMaterializer = ActorMaterializer()
 
   implicit def userWriter = Macros.writer[User]
+
   implicit def userReader = Macros.reader[User]
-  implicit def ec: ExecutionContext
+
+
   val uri = "mongodb://localhost:27017/playwebsocketdemo"
   val dbname = "playwebsocketdemo"
   val collectionName = "users"
@@ -37,35 +43,44 @@ trait UserRepositoryT {
   }
   lazy val collection: Future[BSONCollection] = db.map(_.collection(collectionName))
 
-  def create(user: User): Future[WriteResult] = {
-    collection.flatMap(_.insert(user))
+  def create(user: User, out: Option[ActorRef] = None): Future[WriteResult] = {
+    collection.flatMap(_.insert(user)).map{result =>
+      out.foreach {
+        _ ! user
+      }
+      result
+    }
   }
 
   private def createCursor: Future[AkkaStreamCursor[User]] = {
-    collection.map(_.find(BSONDocument())
-      .options(QueryOpts().tailable.awaitData)
-      .cursor[User]())
+    collection.map { coll =>
+      coll.find(BSONDocument())
+        .tailable
+        .cursor[User]()
+    }
   }
 
+  val c = createCursor
+  var userStreamSource: Future[Source[User, Future[State]]] = c.map { cursor =>
+    cursor.documentSource()
+  }
   def listenUserCollection(f: User => Unit): Unit = {
-    val c = createCursor
     c.onComplete {
       case Success(stream) =>
         Logger.info("Document source stream created.")
-        val s: Source[User, Future[State]] = stream.documentSource()
-        s.runForeach(f)
+        userStreamSource.foreach(x => x.runForeach(f))
       case _ =>
         Logger.info("Failed to create cursor.")
     }
   }
 }
 
-class UserRepository @Inject()(implicit val ec: ExecutionContext) extends UserRepositoryT
+class UserRepository @Inject()(val reactiveMongoApi: ReactiveMongoApi, implicit val ec: ExecutionContext) extends UserRepositoryT
 
 object UserRepository extends App with UserRepositoryT {
-  override val ec = global
+  val ec = scala.concurrent.ExecutionContext.Implicits.global
   listenUserCollection { user =>
     Logger.info(s"==== Created new user: $user")
   }
-  create(User("xxx", "jo", "j@j.org"))
+  create(User("1246", "jo", "j@j.org"))
 }
