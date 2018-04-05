@@ -20,6 +20,7 @@ trait UserRepositoryT {
   import reactivemongo.akkastream._
 
   implicit val ec: ExecutionContext
+  val reactiveMongoApi: ReactiveMongoApi
 
   implicit val system: ActorSystem = ActorSystem()
   implicit val mat: ActorMaterializer = ActorMaterializer()
@@ -29,19 +30,9 @@ trait UserRepositoryT {
   implicit def userReader = Macros.reader[User]
 
 
-  val uri = "mongodb://localhost:27017/playwebsocketdemo"
-  val dbname = "playwebsocketdemo"
-  val collectionName = "users"
-  val driver = MongoDriver()
-  val parsedUri: Try[MongoConnection.ParsedURI] = MongoConnection.parseURI(uri)
-  val connection: Try[MongoConnection] = parsedUri.map(driver.connection)
-  lazy val db: Future[DefaultDB] = connection match {
-    case Success(conn) =>
-      println(s"==== Connection: $conn")
-      conn.database(dbname)
-    case Failure(e) => throw new Exception(s"failed to connect to mongodb $uri")
+  lazy val collection: Future[BSONCollection] = reactiveMongoApi.database.map{db =>
+    db.collection("users")
   }
-  lazy val collection: Future[BSONCollection] = db.map(_.collection(collectionName))
 
   def create(user: User, out: Option[ActorRef] = None): Future[WriteResult] = {
     collection.flatMap(_.insert(user)).map{result =>
@@ -77,10 +68,3 @@ trait UserRepositoryT {
 
 class UserRepository @Inject()(val reactiveMongoApi: ReactiveMongoApi, implicit val ec: ExecutionContext) extends UserRepositoryT
 
-object UserRepository extends App with UserRepositoryT {
-  val ec = scala.concurrent.ExecutionContext.Implicits.global
-  listenUserCollection { user =>
-    Logger.info(s"==== Created new user: $user")
-  }
-  create(User("1246", "jo", "j@j.org"))
-}
