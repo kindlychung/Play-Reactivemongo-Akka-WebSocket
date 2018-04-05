@@ -18,11 +18,10 @@ object UserListenActor {
 }
 
 class UserListenActor(userRepository: UserRepository, out: ActorRef) extends Actor with akka.actor.ActorLogging {
-  var docSource: Option[Source[User, Future[State]]] = None
 
   override def receive: PartialFunction[Any, Unit] = {
     case ReceiveUpdate(u) => {
-      Logger.info("Update received!")
+      Logger.info(s"Update received: $u")
       out ! u
     }
   }

@@ -2,32 +2,38 @@ package repository
 
 import javax.inject.Inject
 import reactivemongo.api._
-import reactivemongo.akkastream.cursorProducer
 import akka.actor.ActorSystem
 import akka.stream.{ActorMaterializer, scaladsl}
 import akka.stream.scaladsl.Source
-import com.google.inject.Guice
 import models._
 import play.api.Logger
-import play.modules.reactivemongo.ReactiveMongoApi
-import reactivemongo.play.json._
-import reactivemongo.akkastream.{AkkaStreamCursor, State}
-import reactivemongo.bson.BSONDocument
-import reactivemongo.play.json.collection.JSONCollection
+import reactivemongo.bson.{BSONDocument, Macros}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.ExecutionContext.global
-import scala.util.Success
-import play.modules.reactivemongo.ReactiveMongoModule
+import scala.util.{Failure, Success, Try}
 
 trait UserRepositoryT {
-  def reactiveMongoApi: ReactiveMongoApi
-
-  implicit def ec: ExecutionContext
-
-  val collection = reactiveMongoApi.database.map(_.collection[JSONCollection]("users"))
+  import reactivemongo.akkastream._
   implicit val system: ActorSystem = ActorSystem()
   implicit val mat: ActorMaterializer = ActorMaterializer()
+
+  implicit def userWriter = Macros.writer[User]
+  implicit def userReader = Macros.reader[User]
+  implicit def ec: ExecutionContext
+  val uri = "mongodb://localhost:27017/playwebsocketdemo"
+  val dbname = "playwebsocketdemo"
+  val collectionName = "users"
+  val driver = MongoDriver()
+  val parsedUri: Try[MongoConnection.ParsedURI] = MongoConnection.parseURI(uri)
+  val connection: Try[MongoConnection] = parsedUri.map(driver.connection)
+  lazy val db: Future[DefaultDB] = connection match {
+    case Success(conn) =>
+      println(s"==== Connection: $conn")
+      conn.database(dbname)
+    case Failure(e) => throw new Exception(s"failed to connect to mongodb $uri")
+  }
+  lazy val collection = db.map(_.collection(collectionName))
 
   def create(user: User) = {
     collection.map(_.insert(user))
@@ -40,11 +46,10 @@ trait UserRepositoryT {
   }
 
   def listenUserCollection(f: User => Unit): Unit = {
-    Logger.info("Inside listenUserCollection...")
     val c = createCursor
     c.onComplete {
       case Success(stream) =>
-        Logger.info("New element received...")
+        Logger.info("Document source stream created.")
         val s: Source[User, Future[State]] = stream.documentSource()
         s.runForeach(f)
       case _ =>
@@ -53,13 +58,12 @@ trait UserRepositoryT {
   }
 }
 
-class UserRepository @Inject()(val reactiveMongoApi: ReactiveMongoApi, implicit val ec: ExecutionContext) extends UserRepositoryT
+class UserRepository @Inject()(implicit val ec: ExecutionContext) extends UserRepositoryT
 
 object UserRepository extends App with UserRepositoryT {
-  private val injector =    play.api.Play.current.injector
-  override val reactiveMongoApi = injector.instanceOf[ReactiveMongoApi]
   override val ec = global
   listenUserCollection { user =>
-    println(user)
+    Logger.info(s"==== Created new user: $user")
   }
+  create(User("jo", "jo", "j@j.org"))
 }
