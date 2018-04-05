@@ -7,6 +7,8 @@ import akka.stream.{ActorMaterializer, scaladsl}
 import akka.stream.scaladsl.Source
 import models._
 import play.api.Logger
+import reactivemongo.api.collections.bson.BSONCollection
+import reactivemongo.api.commands.WriteResult
 import reactivemongo.bson.{BSONDocument, Macros}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -33,10 +35,10 @@ trait UserRepositoryT {
       conn.database(dbname)
     case Failure(e) => throw new Exception(s"failed to connect to mongodb $uri")
   }
-  lazy val collection = db.map(_.collection(collectionName))
+  lazy val collection: Future[BSONCollection] = db.map(_.collection(collectionName))
 
-  def create(user: User) = {
-    collection.map(_.insert(user))
+  def create(user: User): Future[WriteResult] = {
+    collection.flatMap(_.insert(user))
   }
 
   private def createCursor: Future[AkkaStreamCursor[User]] = {
@@ -65,5 +67,5 @@ object UserRepository extends App with UserRepositoryT {
   listenUserCollection { user =>
     Logger.info(s"==== Created new user: $user")
   }
-  create(User("jo", "jo", "j@j.org"))
+  create(User("xxx", "jo", "j@j.org"))
 }
