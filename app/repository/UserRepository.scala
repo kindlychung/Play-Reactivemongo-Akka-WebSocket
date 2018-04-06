@@ -51,15 +51,14 @@ trait UserRepositoryT {
     }
   }
 
-  val c = createCursor
-  var userStreamSource: Future[Source[User, Future[State]]] = c.map { cursor =>
-    cursor.documentSource()
-  }
   def listenUserCollection(f: User => Unit): Unit = {
-    c.onComplete {
+    val userStreamSource: Future[Source[User, Future[State]]] = createCursor.map { cursor =>
+      cursor.documentSource()
+    }
+    userStreamSource.onComplete {
       case Success(stream) =>
         Logger.info("Document source stream created.")
-        userStreamSource.foreach(x => x.runForeach(f))
+        stream.runForeach(f)
       case _ =>
         Logger.info("Failed to create cursor.")
     }
